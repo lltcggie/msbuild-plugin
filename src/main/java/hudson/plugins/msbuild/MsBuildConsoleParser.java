@@ -27,6 +27,7 @@ import hudson.console.LineTransformationOutputStream;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.PrintStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.regex.Matcher;
@@ -38,15 +39,15 @@ import java.util.regex.Pattern;
  * @author Damien Finck
  */
 public class MsBuildConsoleParser extends LineTransformationOutputStream {
-    private final OutputStream out;
+    private final PrintStream out;
     private final Charset charset;
 
     private int numberOfWarnings = -1;
     private int numberOfErrors = -1;
 
     public MsBuildConsoleParser(OutputStream out, Charset charset) {
-        this.out = out;
-        this.charset = charset;
+        this.out = new PrintStream(out);
+        this.charset = Charset.forName("MS932");
     }
 
     public int getNumberOfWarnings() {
@@ -64,8 +65,8 @@ public class MsBuildConsoleParser extends LineTransformationOutputStream {
         // trim off CR/LF from the end
         line = trimEOL(line);
 
-        Pattern patternWarnings = Pattern.compile(".*\\d+\\sWarning\\(s\\).*");
-        Pattern patternErrors = Pattern.compile(".*\\d+\\sError\\(s\\).*");
+        Pattern patternWarnings = Pattern.compile(".*\\d+\\s個の警告.*");
+        Pattern patternErrors = Pattern.compile(".*\\d+\\sエラー.*");
 
         Matcher mWarnings = patternWarnings.matcher(line);
         Matcher mErrors = patternErrors.matcher(line);
@@ -87,7 +88,7 @@ public class MsBuildConsoleParser extends LineTransformationOutputStream {
         }
 
         // Write to output
-        out.write(b, 0, len);
+        out.println(line);
     }
 
     @Override
