@@ -29,8 +29,10 @@ import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.Builder;
 import hudson.tools.ToolInstallation;
 import hudson.util.ArgumentListBuilder;
+import hudson.util.FormValidation;
 import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.QueryParameter;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,6 +53,8 @@ public class MsBuildBuilder extends Builder {
     private transient boolean continueOnBuilFailure;
     private final boolean continueOnBuildFailure;
     private final boolean unstableIfWarnings;
+    private final boolean retryOnBuildFailure;
+    private final String retryCountOnBuildFailure;
 
     /**
      * When this builder is created in the project configuration step,
@@ -62,16 +66,19 @@ public class MsBuildBuilder extends Builder {
      * @param buildVariablesAsProperties If true, pass build variables as properties to MSBuild
      * @param continueOnBuildFailure     If true, job will continue dispite of MSBuild build failure
      * @param unstableIfWarnings         If true, job will be unstable if there are warnings
+     * @param retryCountOnBuildFailure   Retry Count if on build failure
      */
     @DataBoundConstructor
     @SuppressWarnings("unused")
-    public MsBuildBuilder(String msBuildName, String msBuildFile, String cmdLineArgs, boolean buildVariablesAsProperties, boolean continueOnBuildFailure, boolean unstableIfWarnings) {
+    public MsBuildBuilder(String msBuildName, String msBuildFile, String cmdLineArgs, boolean buildVariablesAsProperties, boolean continueOnBuildFailure, boolean unstableIfWarnings, boolean retryOnBuildFailure, String retryCountOnBuildFailure) {
         this.msBuildName = msBuildName;
         this.msBuildFile = msBuildFile;
         this.cmdLineArgs = cmdLineArgs;
         this.buildVariablesAsProperties = buildVariablesAsProperties;
         this.continueOnBuildFailure = continueOnBuildFailure;
         this.unstableIfWarnings = unstableIfWarnings;
+        this.retryOnBuildFailure = retryOnBuildFailure;
+        this.retryCountOnBuildFailure = retryCountOnBuildFailure;
     }
 
     @SuppressWarnings("unused")
@@ -104,6 +111,16 @@ public class MsBuildBuilder extends Builder {
         return unstableIfWarnings;
     }
 
+    @SuppressWarnings("unused")
+    public boolean getRetryOnBuildFailure() {
+        return retryOnBuildFailure;
+    }
+
+    @SuppressWarnings("unused")
+    public String getRetryCountOnBuildFailure() {
+        return retryCountOnBuildFailure;
+    }
+
     public MsBuildInstallation getMsBuild() {
         DescriptorImpl descriptor = (DescriptorImpl) getDescriptor();
         for (MsBuildInstallation i : descriptor.getInstallations()) {
@@ -120,6 +137,14 @@ public class MsBuildBuilder extends Builder {
         String execName = "msbuild.exe";
         MsBuildInstallation ai = getMsBuild();
 
+        int maxRetryCount = 0;
+
+        try {
+            if(retryOnBuildFailure && retryCountOnBuildFailure != null && retryCountOnBuildFailure.length() > 0)
+                maxRetryCount = Integer.parseInt(retryCountOnBuildFailure);
+        } catch(NumberFormatException e) {
+        }
+
         if (ai == null) {
             listener.getLogger().println("Path To MSBuild.exe: " + execName);
             args.add(execName);
@@ -128,27 +153,27 @@ public class MsBuildBuilder extends Builder {
             Node node = Computer.currentComputer().getNode();
             if (node != null) {
                 ai = ai.forNode(node, listener);
-                ai = ai.forEnvironment(env);
+            ai = ai.forEnvironment(env);
                 String pathToMsBuild = getToolFullPath(launcher, ai.getHome(), execName);
-                FilePath exec = new FilePath(launcher.getChannel(), pathToMsBuild);
+            FilePath exec = new FilePath(launcher.getChannel(), pathToMsBuild);
     
-                try {
-                    if (!exec.exists()) {
-                        listener.fatalError(pathToMsBuild + " doesn't exist");
-                        return false;
-                    }
-                } catch (IOException e) {
-                    listener.fatalError("Failed checking for existence of " + pathToMsBuild);
+            try {
+                if (!exec.exists()) {
+                    listener.fatalError(pathToMsBuild + " doesn't exist");
                     return false;
                 }
-    
-                listener.getLogger().println("Path To MSBuild.exe: " + pathToMsBuild);
-                args.add(pathToMsBuild);
-    
-                if (ai.getDefaultArgs() != null) {
-                    args.add(tokenizeArgs(ai.getDefaultArgs()));
-                }
+            } catch (IOException e) {
+                listener.fatalError("Failed checking for existence of " + pathToMsBuild);
+                return false;
             }
+    
+            listener.getLogger().println("Path To MSBuild.exe: " + pathToMsBuild);
+            args.add(pathToMsBuild);
+    
+            if (ai.getDefaultArgs() != null) {
+                args.add(tokenizeArgs(ai.getDefaultArgs()));
+            }
+        }
         }
 
         EnvVars env = build.getEnvironment(listener);
@@ -196,25 +221,37 @@ public class MsBuildBuilder extends Builder {
             args.add("\"", "&&", "exit", "%%ERRORLEVEL%%");
         }
 
-        try {
-            listener.getLogger().println(String.format("Executing the command %s from %s", args.toStringWithQuote(), pwd));
-            // Parser to find the number of Warnings/Errors
-            MsBuildConsoleParser mbcp = new MsBuildConsoleParser(listener.getLogger(), build.getCharset());
+        for(int i = 0 ; i <= maxRetryCount; i++) {
+            try {
+                if(i > 0) {
+                    listener.getLogger().println("");
+                    listener.getLogger().println("");
+                    listener.getLogger().println(String.format("Retry Count: %d", i));
+                }
+
+                listener.getLogger().println(String.format("Executing the command %s from %s", args.toStringWithQuote(), pwd));
+                // Parser to find the number of Warnings/Errors
+                MsBuildConsoleParser mbcp = new MsBuildConsoleParser(listener.getLogger(), build.getCharset());
             MSBuildConsoleAnnotator annotator = new MSBuildConsoleAnnotator(listener.getLogger(), build.getCharset());
-            // Launch the msbuild.exe
+                // Launch the msbuild.exe
             int r = launcher.launch().cmds(args).envs(env).stdout(mbcp).stdout(annotator).pwd(pwd).join();
-            // Check the number of warnings
-            if (unstableIfWarnings && mbcp.getNumberOfWarnings() > 0) {
-                listener.getLogger().println("> Set build UNSTABLE because there are warnings.");
-                build.setResult(Result.UNSTABLE);
+                // Check the number of warnings
+                if (unstableIfWarnings && mbcp.getNumberOfWarnings() > 0) {
+                    listener.getLogger().println("> Set build UNSTABLE because there are warnings.");
+                    build.setResult(Result.UNSTABLE);
+                }
+
+                // Return the result of the compilation
+                if(continueOnBuildFailure || r == 0)
+                    return true;
+            } catch (IOException e) {
+                Util.displayIOException(e, listener);
+                build.setResult(Result.FAILURE);
+                return false;
             }
-            // Return the result of the compilation
-            return continueOnBuildFailure ? true : (r == 0);
-        } catch (IOException e) {
-            Util.displayIOException(e, listener);
-            build.setResult(Result.FAILURE);
-            return false;
         }
+
+        return false;
     }
 
 
@@ -312,6 +349,17 @@ public class MsBuildBuilder extends Builder {
 
         public MsBuildInstallation.DescriptorImpl getToolDescriptor() {
             return ToolInstallation.all().get(MsBuildInstallation.DescriptorImpl.class);
+        }
+
+        public FormValidation doCheckRetryCountOnBuildFailure(@QueryParameter String value) {
+            try {
+                if(value != null && value.length() > 0)
+                    Integer.parseInt(value);
+            } catch(NumberFormatException e) {
+                return FormValidation.error("The value must be a number.");
+            }
+
+            return FormValidation.ok();
         }
     }
 }

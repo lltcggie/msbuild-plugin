@@ -50,5 +50,10 @@ THE SOFTWARE.
             <f:checkbox name="msBuildBuilder.unstableIfWarnings" value="${instance.unstableIfWarnings}"
                         checked="${instance.unstableIfWarnings}" default="false"/>
         </f:entry>
+        <f:optionalBlock name="retryOnBuildFailure" title="${%Use Retry Failure}" inline="true" value="${instance.retryOnBuildFailure}" checked="${instance.retryOnBuildFailure}" default="false">
+            <f:entry title="${%Retry Count}" field="retryCountOnBuildFailure">
+                <f:textbox name="msBuildBuilder.retryCountOnBuildFailure" value="${instance.retryCountOnBuildFailure}"/>
+            </f:entry>
+        </f:optionalBlock>
     </f:advanced>
 </j:jelly>
