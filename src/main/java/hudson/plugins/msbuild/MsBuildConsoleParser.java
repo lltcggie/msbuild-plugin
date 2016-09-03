@@ -40,14 +40,18 @@ import java.util.regex.Pattern;
  */
 public class MsBuildConsoleParser extends LineTransformationOutputStream {
     private final PrintStream out;
-    private final Charset charset;
+    private final Charset incharset;
+    private final Charset outcharset;
+    private final boolean itTrans;
 
     private int numberOfWarnings = -1;
     private int numberOfErrors = -1;
 
-    public MsBuildConsoleParser(OutputStream out, Charset charset) {
+    public MsBuildConsoleParser(OutputStream out, Charset outcharset) {
         this.out = new PrintStream(out);
-        this.charset = Charset.forName("MS932");
+        this.incharset = Charset.forName("MS932");
+        this.outcharset = outcharset;
+        this.itTrans = this.incharset.name() == this.outcharset.name();
     }
 
     public int getNumberOfWarnings() {
@@ -60,7 +64,7 @@ public class MsBuildConsoleParser extends LineTransformationOutputStream {
 
     @Override
     protected void eol(byte[] b, int len) throws IOException {
-        String line = charset.decode(ByteBuffer.wrap(b, 0, len)).toString();
+        String line = this.incharset.decode(ByteBuffer.wrap(b, 0, len)).toString();
 
         // trim off CR/LF from the end
         line = trimEOL(line);
@@ -87,8 +91,13 @@ public class MsBuildConsoleParser extends LineTransformationOutputStream {
             }
         }
 
+        String outline = line;
+        if(this.itTrans) {
+            outline = new String(line.getBytes(this.outcharset.name()), this.outcharset.name());
+        }
+
         // Write to output
-        out.println(line);
+        out.println(outline);
     }
 
     @Override
