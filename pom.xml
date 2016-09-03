@@ -4,13 +4,11 @@
     <parent>
         <groupId>org.jenkins-ci.plugins</groupId>
         <artifactId>plugin</artifactId>
-        <version>1.580.1</version>
-    </parent>
+        <version>2.6</version>    </parent>
 
     <artifactId>msbuild</artifactId>
     <packaging>hpi</packaging>
-    <version>1.25-SNAPSHOT-JANPANESE</version>
-    <name>Jenkins MSBuild Plugin</name>
+    <version>1.27-SNAPSHOT-JANPANESE</version>    <name>Jenkins MSBuild Plugin</name>
     <url>http://wiki.jenkins-ci.org/display/JENKINS/MSBuild+Plugin</url>
 
     <licenses>
@@ -19,6 +17,10 @@
             <comments>All source code is under the MIT license.</comments>
         </license>
     </licenses>
+    
+    <properties>
+      <jenkins.version>1.625</jenkins.version>
+    </properties>
 
     <developers>
         <developer>
@@ -32,13 +34,26 @@
             <name>Kyle Sweeney</name>
             <email>kyle.sweeney@valtech.com</email>
         </developer>
+        <developer>
+            <id>marshall777</id>
+            <name>Lionel Cabasson</name>
+            <email>marshall777@gmail.com</email>
+        </developer>
     </developers>
 
     <scm>
         <connection>scm:git:git://github.com/jenkinsci/msbuild-plugin.git</connection>
         <developerConnection>scm:git:git@github.com:jenkinsci/msbuild-plugin.git</developerConnection>
-        <tag>HEAD</tag>
+        <tag>msbuild-1.26</tag>
     </scm>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.jenkins-ci.plugins</groupId>
+            <artifactId>structs</artifactId>
+            <version>1.3</version>
+        </dependency>
+    </dependencies>
 
     <repositories>
         <repository>

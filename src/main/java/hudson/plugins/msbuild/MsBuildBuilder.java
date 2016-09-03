@@ -29,9 +29,11 @@ import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.Builder;
 import hudson.tools.ToolInstallation;
 import hudson.util.ArgumentListBuilder;
+import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 
@@ -123,26 +125,29 @@ public class MsBuildBuilder extends Builder {
             args.add(execName);
         } else {
             EnvVars env = build.getEnvironment(listener);
-            ai = ai.forNode(Computer.currentComputer().getNode(), listener);
-            ai = ai.forEnvironment(env);
-            String pathToMsBuild = ai.getHome();
-            FilePath exec = new FilePath(launcher.getChannel(), pathToMsBuild);
-
-            try {
-                if (!exec.exists()) {
-                    listener.fatalError(pathToMsBuild + " doesn't exist");
+            Node node = Computer.currentComputer().getNode();
+            if (node != null) {
+                ai = ai.forNode(node, listener);
+                ai = ai.forEnvironment(env);
+                String pathToMsBuild = getToolFullPath(launcher, ai.getHome(), execName);
+                FilePath exec = new FilePath(launcher.getChannel(), pathToMsBuild);
+    
+                try {
+                    if (!exec.exists()) {
+                        listener.fatalError(pathToMsBuild + " doesn't exist");
+                        return false;
+                    }
+                } catch (IOException e) {
+                    listener.fatalError("Failed checking for existence of " + pathToMsBuild);
                     return false;
                 }
-            } catch (IOException e) {
-                listener.fatalError("Failed checking for existence of " + pathToMsBuild);
-                return false;
-            }
-
-            listener.getLogger().println("Path To MSBuild.exe: " + pathToMsBuild);
-            args.add(pathToMsBuild);
-
-            if (ai.getDefaultArgs() != null) {
-                args.add(tokenizeArgs(ai.getDefaultArgs()));
+    
+                listener.getLogger().println("Path To MSBuild.exe: " + pathToMsBuild);
+                args.add(pathToMsBuild);
+    
+                if (ai.getDefaultArgs() != null) {
+                    args.add(tokenizeArgs(ai.getDefaultArgs()));
+                }
             }
         }
 
@@ -195,8 +200,9 @@ public class MsBuildBuilder extends Builder {
             listener.getLogger().println(String.format("Executing the command %s from %s", args.toStringWithQuote(), pwd));
             // Parser to find the number of Warnings/Errors
             MsBuildConsoleParser mbcp = new MsBuildConsoleParser(listener.getLogger(), build.getCharset());
+            MSBuildConsoleAnnotator annotator = new MSBuildConsoleAnnotator(listener.getLogger(), build.getCharset());
             // Launch the msbuild.exe
-            int r = launcher.launch().cmds(args).envs(env).stdout(mbcp).pwd(pwd).join();
+            int r = launcher.launch().cmds(args).envs(env).stdout(mbcp).stdout(annotator).pwd(pwd).join();
             // Check the number of warnings
             if (unstableIfWarnings && mbcp.getNumberOfWarnings() > 0) {
                 listener.getLogger().println("> Set build UNSTABLE because there are warnings.");
@@ -228,6 +234,27 @@ public class MsBuildBuilder extends Builder {
         return buildVariables;
     }
 
+    /**
+     * Get the full path of the tool to run.
+     * If given path is a directory, this will append the executable name.
+     */
+    static String getToolFullPath(Launcher launcher, String pathToTool, String execName) throws IOException, InterruptedException
+    {
+        String fullPathToMsBuild = pathToTool;
+        
+        FilePath exec = new FilePath(launcher.getChannel(), fullPathToMsBuild);
+        if (exec.isDirectory())
+        {
+            if (!fullPathToMsBuild.endsWith("\\"))
+            {
+                fullPathToMsBuild = fullPathToMsBuild + "\\";
+            }
+
+            fullPathToMsBuild = fullPathToMsBuild + execName;
+        }
+        
+        return fullPathToMsBuild;
+    }
 
     @Override
     public Descriptor<Builder> getDescriptor() {
@@ -248,18 +275,14 @@ public class MsBuildBuilder extends Builder {
 
         final String[] tokenize = Util.tokenize(args);
 
-        if (tokenize == null) {
-            return null;
-        }
-
-        if (args != null && args.endsWith("\\")) {
+        if (args.endsWith("\\")) {
             tokenize[tokenize.length - 1] = tokenize[tokenize.length - 1] + "\\";
         }
 
         return tokenize;
     }
 
-    @Extension
+    @Extension @Symbol("msbuild")
     public static final class DescriptorImpl extends BuildStepDescriptor<Builder> {
         @CopyOnWrite
         private volatile MsBuildInstallation[] installations = new MsBuildInstallation[0];
@@ -279,7 +302,7 @@ public class MsBuildBuilder extends Builder {
         }
 
         public MsBuildInstallation[] getInstallations() {
-            return installations;
+            return Arrays.copyOf(installations, installations.length);
         }
 
         public void setInstallations(MsBuildInstallation... antInstallations) {
