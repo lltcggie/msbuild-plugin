@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
+import java.nio.charset.Charset;
 
 /**
  * @author kyle.sweeney@valtech.com
@@ -186,7 +187,7 @@ public class MsBuildBuilder extends Builder {
 
         //Build /P:key1=value1;key2=value2 ...
         Map<String, String> propertiesVariables = getPropertiesVariables(build);
-        if (buildVariablesAsProperties && propertiesVariables.size() != 0) {
+        if (buildVariablesAsProperties && !propertiesVariables.isEmpty()) {
             StringBuffer parameters = new StringBuffer();
             parameters.append("/p:");
             for (Map.Entry<String, String> entry : propertiesVariables.entrySet()) {
@@ -203,7 +204,7 @@ public class MsBuildBuilder extends Builder {
             normalizedFile = msBuildFile.replaceAll("[\t\r\n]+", " ");
             normalizedFile = Util.replaceMacro(normalizedFile, env);
             normalizedFile = Util.replaceMacro(normalizedFile, build.getBuildVariables());
-            if (normalizedFile.length() > 0) {
+            if (!normalizedFile.isEmpty()) {
                 args.add(normalizedFile);
             }
         }
@@ -217,7 +218,11 @@ public class MsBuildBuilder extends Builder {
         }
 
         if (!launcher.isUnix()) {
-            args.prepend("cmd.exe", "/C", "\"");
+            final int cpi = getCodePageIdentifier(build.getCharset());
+            if(cpi != 0)
+                args.prepend("cmd.exe", "/C", "\"", "chcp", String.valueOf(cpi), "&&");
+            else
+                args.prepend("cmd.exe", "/C", "\"");
             args.add("\"", "&&", "exit", "%%ERRORLEVEL%%");
         }
 
@@ -260,7 +265,7 @@ public class MsBuildBuilder extends Builder {
         Map<String, String> buildVariables = build.getBuildVariables();
 
         final Set<String> sensitiveBuildVariables = build.getSensitiveBuildVariables();
-        if (sensitiveBuildVariables == null || sensitiveBuildVariables.size() == 0) {
+        if (sensitiveBuildVariables == null || sensitiveBuildVariables.isEmpty()) {
             return buildVariables;
         }
 
@@ -295,7 +300,7 @@ public class MsBuildBuilder extends Builder {
 
     @Override
     public Descriptor<Builder> getDescriptor() {
-        return (DescriptorImpl) super.getDescriptor();
+        return super.getDescriptor();
     }
 
     /**
@@ -329,6 +334,7 @@ public class MsBuildBuilder extends Builder {
             load();
         }
 
+        @Override
         public String getDisplayName() {
             return Messages.MsBuildBuilder_DisplayName();
         }
@@ -361,5 +367,157 @@ public class MsBuildBuilder extends Builder {
 
             return FormValidation.ok();
         }
+    }
+
+    private static int getCodePageIdentifier(Charset charset) {
+        final String s_charset = charset.name();
+        if(s_charset.equalsIgnoreCase("utf-8"))             // Unicode
+            return 65001;
+        else if(s_charset.equalsIgnoreCase("ibm437"))       // US
+            return 437;
+        else if(s_charset.equalsIgnoreCase("ibm850"))       // OEM Multilingual Latin 1
+            return 850;
+        else if(s_charset.equalsIgnoreCase("ibm852"))       // OEM Latin2
+            return 852;
+        else if(s_charset.equalsIgnoreCase("shift_jis") || s_charset.equalsIgnoreCase("windows-31j"))//Japanese
+            return 932;
+        else if(s_charset.equalsIgnoreCase("us-ascii"))     // US-ASCII
+            return 20127;
+        else if(s_charset.equalsIgnoreCase("euc-jp"))       // Japanese
+            return 20932;
+        else if(s_charset.equalsIgnoreCase("iso-8859-1"))   // Latin 1
+            return 28591;
+        else if(s_charset.equalsIgnoreCase("iso-8859-2"))   // Latin 2
+            return 28592;
+        else if(s_charset.equalsIgnoreCase("IBM00858"))
+            return 858;
+        else if(s_charset.equalsIgnoreCase("IBM775"))
+            return 775;
+        else if(s_charset.equalsIgnoreCase("IBM855"))
+            return 855;
+        else if(s_charset.equalsIgnoreCase("IBM857"))
+            return 857;
+        else if(s_charset.equalsIgnoreCase("ISO-8859-4"))
+            return 28594;
+        else if(s_charset.equalsIgnoreCase("ISO-8859-5"))
+            return 28595;
+        else if(s_charset.equalsIgnoreCase("ISO-8859-7"))
+            return 28597;
+        else if(s_charset.equalsIgnoreCase("ISO-8859-9"))
+            return 28599;
+        else if(s_charset.equalsIgnoreCase("ISO-8859-13"))
+            return 28603;
+        else if(s_charset.equalsIgnoreCase("ISO-8859-15"))
+            return 28605;
+        else if(s_charset.equalsIgnoreCase("KOI8-R"))
+            return 20866;
+        else if(s_charset.equalsIgnoreCase("KOI8-U"))
+            return 21866;
+        else if(s_charset.equalsIgnoreCase("UTF-16"))
+            return 1200;
+        else if(s_charset.equalsIgnoreCase("UTF-32"))
+            return 12000;
+        else if(s_charset.equalsIgnoreCase("UTF-32BE"))
+            return 12001;
+        else if(s_charset.equalsIgnoreCase("windows-1250"))
+            return 1250;
+        else if(s_charset.equalsIgnoreCase("windows-1251"))
+            return 1251;
+        else if(s_charset.equalsIgnoreCase("windows-1252"))
+            return 1252;
+        else if(s_charset.equalsIgnoreCase("windows-1253"))
+            return 1253;
+        else if(s_charset.equalsIgnoreCase("windows-1254"))
+            return 1254;
+        else if(s_charset.equalsIgnoreCase("windows-1257"))
+            return 1257;
+        else if(s_charset.equalsIgnoreCase("Big5"))
+            return 950;
+        else if(s_charset.equalsIgnoreCase("EUC-KR"))
+            return 51949;
+        else if(s_charset.equalsIgnoreCase("GB18030"))
+            return 54936;
+        else if(s_charset.equalsIgnoreCase("GB2312"))
+            return 936;
+        else if(s_charset.equalsIgnoreCase("IBM-Thai"))
+            return 20838;
+        else if(s_charset.equalsIgnoreCase("IBM01140"))
+            return 1140;
+        else if(s_charset.equalsIgnoreCase("IBM01141"))
+            return 1141;
+        else if(s_charset.equalsIgnoreCase("IBM01142"))
+            return 1142;
+        else if(s_charset.equalsIgnoreCase("IBM01143"))
+            return 1143;
+        else if(s_charset.equalsIgnoreCase("IBM01144"))
+            return 1144;
+        else if(s_charset.equalsIgnoreCase("IBM01145"))
+            return 1145;
+        else if(s_charset.equalsIgnoreCase("IBM01146"))
+            return 1146;
+        else if(s_charset.equalsIgnoreCase("IBM01147"))
+            return 1147;
+        else if(s_charset.equalsIgnoreCase("IBM01148"))
+            return 1148;
+        else if(s_charset.equalsIgnoreCase("IBM01149"))
+            return 1149;
+        else if(s_charset.equalsIgnoreCase("IBM037"))
+            return 37;
+        else if(s_charset.equalsIgnoreCase("IBM1026"))
+            return 1026;
+        else if(s_charset.equalsIgnoreCase("IBM273"))
+            return 20273;
+        else if(s_charset.equalsIgnoreCase("IBM277"))
+            return 20277;
+        else if(s_charset.equalsIgnoreCase("IBM278"))
+            return 20278;
+        else if(s_charset.equalsIgnoreCase("IBM280"))
+            return 20280;
+        else if(s_charset.equalsIgnoreCase("IBM284"))
+            return 20284;
+        else if(s_charset.equalsIgnoreCase("IBM285"))
+            return 20285;
+        else if(s_charset.equalsIgnoreCase("IBM297"))
+            return 20297;
+        else if(s_charset.equalsIgnoreCase("IBM420"))
+            return 20420;
+        else if(s_charset.equalsIgnoreCase("IBM424"))
+            return 20424;
+        else if(s_charset.equalsIgnoreCase("IBM500"))
+            return 500;
+        else if(s_charset.equalsIgnoreCase("IBM860"))
+            return 860;
+        else if(s_charset.equalsIgnoreCase("IBM861"))
+            return 861;
+        else if(s_charset.equalsIgnoreCase("IBM863"))
+            return 863;
+        else if(s_charset.equalsIgnoreCase("IBM864"))
+            return 864;
+        else if(s_charset.equalsIgnoreCase("IBM865"))
+            return 865;
+        else if(s_charset.equalsIgnoreCase("IBM869"))
+            return 869;
+        else if(s_charset.equalsIgnoreCase("IBM870"))
+            return 870;
+        else if(s_charset.equalsIgnoreCase("IBM871"))
+            return 20871;
+        else if(s_charset.equalsIgnoreCase("ISO-2022-JP"))
+            return 50220;
+        else if(s_charset.equalsIgnoreCase("ISO-2022-KR"))
+            return 50225;
+        else if(s_charset.equalsIgnoreCase("ISO-8859-3"))
+            return 28593;
+        else if(s_charset.equalsIgnoreCase("ISO-8859-6"))
+            return 28596;
+        else if(s_charset.equalsIgnoreCase("ISO-8859-8"))
+            return 28598;
+        else if(s_charset.equalsIgnoreCase("windows-1255"))
+            return 1255;
+        else if(s_charset.equalsIgnoreCase("windows-1256"))
+            return 1256;
+        else if(s_charset.equalsIgnoreCase("windows-1258"))
+            return 1258;
+        else
+            return 0;
     }
 }
