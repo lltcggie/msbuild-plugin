@@ -178,6 +178,19 @@ public class MsBuildBuilder extends Builder {
         }
 
         EnvVars env = build.getEnvironment(listener);
+
+        //If a msbuild file is specified, then add it as an argument, otherwise
+        //msbuild will search for any file that ends in .proj or .sln
+        String normalizedFile = null;
+        if (msBuildFile != null && msBuildFile.trim().length() != 0) {
+            normalizedFile = msBuildFile.replaceAll("[\t\r\n]+", " ");
+            normalizedFile = Util.replaceMacro(normalizedFile, env);
+            normalizedFile = Util.replaceMacro(normalizedFile, build.getBuildVariables());
+            if (!normalizedFile.isEmpty()) {
+                args.add(normalizedFile);
+            }
+        }
+
         String normalizedArgs = cmdLineArgs.replaceAll("[\t\r\n]+", " ");
         normalizedArgs = Util.replaceMacro(normalizedArgs, env);
         normalizedArgs = Util.replaceMacro(normalizedArgs, build.getBuildVariables());
@@ -195,18 +208,6 @@ public class MsBuildBuilder extends Builder {
             }
             parameters.delete(parameters.length() - 1, parameters.length());
             args.add(parameters.toString());
-        }
-
-        //If a msbuild file is specified, then add it as an argument, otherwise
-        //msbuild will search for any file that ends in .proj or .sln
-        String normalizedFile = null;
-        if (msBuildFile != null && msBuildFile.trim().length() != 0) {
-            normalizedFile = msBuildFile.replaceAll("[\t\r\n]+", " ");
-            normalizedFile = Util.replaceMacro(normalizedFile, env);
-            normalizedFile = Util.replaceMacro(normalizedFile, build.getBuildVariables());
-            if (!normalizedFile.isEmpty()) {
-                args.add(normalizedFile);
-            }
         }
 
         FilePath pwd = build.getModuleRoot();
