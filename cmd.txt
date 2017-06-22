@@ -1,0 +1,6 @@
+set path=%path%;D:\apache-maven-3.3.9\bin
+set JAVA_HOME=C:\Program Files\Java\jdk1.8.0_121
+
+mvn hpi:run -Djetty.port=8040 -Dfile.encoding=UTF-8
+
+mvn package -Dmaven.test.skip
